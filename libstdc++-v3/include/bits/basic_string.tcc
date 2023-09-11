@@ -679,18 +679,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _GLIBCXX_NOEXCEPT
     {
       __glibcxx_requires_string_len(__s, __n);
-      const size_type __size = this->size();
+      size_type __size = this->size();
+
       if (__n <= __size)
-	{
-	  __pos = std::min(size_type(__size - __n), __pos);
-	  const _CharT* __data = _M_data();
-	  do
-	    {
-	      if (traits_type::compare(__data + __pos, __s, __n) == 0)
-		return __pos;
-	    }
-	  while (__pos-- > 0);
-	}
+      {
+    __pos = std::min(size_type(__size - __n), __pos);
+    size_type __result = find_last_of(__s, __pos, __n);
+
+    if (__result != npos)
+      return __result;
+      }
       return npos;
     }
 
@@ -701,14 +699,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     rfind(_CharT __c, size_type __pos) const _GLIBCXX_NOEXCEPT
     {
       size_type __size = this->size();
-      if (__size)
-	{
-	  if (--__size > __pos)
-	    __size = __pos;
-	  for (++__size; __size-- > 0; )
-	    if (traits_type::eq(_M_data()[__size], __c))
-	      return __size;
-	}
+      if (__size > 0)
+      {
+      if (--__size > __pos)
+        __size = __pos;
+
+      const _CharT *__str = &__c;
+      size_type __n = 1;
+      size_type __result = find_last_of(__str, __size, __n);
+
+      if (__result != npos)
+        return __result;
+      }
       return npos;
     }
 
@@ -738,17 +740,37 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       __glibcxx_requires_string_len(__s, __n);
       size_type __size = this->size();
+
       if (__size && __n)
-	{
-	  if (--__size > __pos)
-	    __size = __pos;
-	  do
-	    {
-	      if (traits_type::find(__s, __n, _M_data()[__size]))
-		return __size;
-	    }
-	  while (__size-- != 0);
-	}
+      {
+    if (--__size > __pos)
+      __size = __pos;
+
+    // Preprocessing for Boyer-Moore algorithm
+    size_type last_occurrence[256];
+    for (size_type i = 0; i < 256; ++i)
+      last_occurrence[i] = npos;
+
+    for (size_type i = 0; i < __n; ++i)
+      last_occurrence[static_cast<unsigned char>(__s[i])] = i;
+
+    // Boyer-Moore algorithm
+    size_type i = __size;
+    while (i != npos)
+    {
+      size_type j = __n - 1;
+      while (j != npos && _M_data()[i] == __s[j])
+      {
+        --i;
+        --j;
+      }
+      if (j == npos)
+        return i + 1;
+
+      // Calculate the jump based on the last occurrence of the mismatched character.
+      i -= std::max(j - last_occurrence[static_cast<unsigned char>(_M_data()[i])], static_cast<size_type>(1));
+    }
+      }
       return npos;
     }
 

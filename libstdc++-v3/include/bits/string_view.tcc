@@ -101,32 +101,34 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       if (__n <= this->_M_len)
 	{
 	  __pos = std::min(size_type(this->_M_len - __n), __pos);
-	  do
-	    {
-	      if (traits_type::compare(this->_M_str + __pos, __str, __n) == 0)
-		return __pos;
-	    }
-	  while (__pos-- > 0);
+    size_type __result = find_last_of(__str, __pos, __n);
+
+    if (__result != npos)
+      return __result;
 	}
       return npos;
     }
 
   template<typename _CharT, typename _Traits>
-    constexpr typename basic_string_view<_CharT, _Traits>::size_type
-    basic_string_view<_CharT, _Traits>::
-    rfind(_CharT __c, size_type __pos) const noexcept
+  constexpr typename basic_string_view<_CharT, _Traits>::size_type
+  basic_string_view<_CharT, _Traits>::
+  rfind(_CharT __c, size_type __pos) const noexcept
+  {
+    size_type __size = this->_M_len;
+    if (__size > 0)
     {
-      size_type __size = this->_M_len;
-      if (__size > 0)
-	{
-	  if (--__size > __pos)
-	    __size = __pos;
-	  for (++__size; __size-- > 0; )
-	    if (traits_type::eq(this->_M_str[__size], __c))
-	      return __size;
-	}
-      return npos;
+      if (--__size > __pos)
+        __size = __pos;
+
+      const _CharT* __str = &__c;
+      size_type __n = 1;
+      size_type __result = find_last_of(__str, __size, __n);
+
+      if (__result != npos)
+        return __result;
     }
+    return npos;
+  }
 
   template<typename _CharT, typename _Traits>
     constexpr typename basic_string_view<_CharT, _Traits>::size_type
@@ -146,26 +148,42 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 
   template<typename _CharT, typename _Traits>
-    constexpr typename basic_string_view<_CharT, _Traits>::size_type
-    basic_string_view<_CharT, _Traits>::
-    find_last_of(const _CharT* __str, size_type __pos,
-		 size_type __n) const noexcept
+  constexpr typename basic_string_view<_CharT, _Traits>::size_type
+  basic_string_view<_CharT, _Traits>::
+  find_last_of(const _CharT* __str, size_type __pos,
+               size_type __n) const noexcept
+  {
+    __glibcxx_requires_string_len(__str, __n);
+    size_type __size = this->size();
+    if (__size && __n)
     {
-      __glibcxx_requires_string_len(__str, __n);
-      size_type __size = this->size();
-      if (__size && __n)
-	{
-	  if (--__size > __pos)
-	    __size = __pos;
-	  do
-	    {
-	      if (traits_type::find(__str, __n, this->_M_str[__size]))
-		return __size;
-	    }
-	  while (__size-- != 0);
-	}
-      return npos;
+      if (--__size > __pos)
+        __size = __pos;
+
+      // Preprocessing for Boyer-Moore algorithm
+      size_type last_occurrence[256];
+      for (size_type i = 0; i < 256; ++i)
+        last_occurrence[i] = npos;
+      for (size_type i = 0; i < __n; ++i)
+        last_occurrence[static_cast<unsigned char>(__str[i])] = i;
+
+      // Boyer-Moore algorithm
+      size_type i = __size;
+      while (i < __size + __n)
+      {
+        size_type j = __n - 1;
+        while (j != npos && this->_M_str[i] == __str[j])
+        {
+          --i;
+          --j;
+        }
+        if (j == npos)
+          return i + 1;
+        i += std::max(j - last_occurrence[static_cast<unsigned char>(this->_M_str[i])], static_cast<size_type>(1));
+      }
     }
+    return npos;
+  }
 
   template<typename _CharT, typename _Traits>
     constexpr typename basic_string_view<_CharT, _Traits>::size_type
